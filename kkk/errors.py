@@ -117,6 +117,55 @@ class TerminationConditionError(FrameworkError):
     retryable = False
 
 
+# --- 状态序列化 / 检查点 ---------------------------------------------------
+class StateSerializationError(FrameworkError):
+    """ctx.state 或任务输入无法安全地做 JSON 往返。"""
+
+    code = "E_STATE_SERIALIZATION"
+    retryable = False
+
+
+class CheckpointError(FrameworkError):
+    """检查点相关错误的基类。"""
+
+    code = "E_CHECKPOINT"
+    retryable = False
+
+
+class CheckpointNotFoundError(CheckpointError):
+    code = "E_CHECKPOINT_NOT_FOUND"
+
+
+class CheckpointInvalidError(CheckpointError):
+    """文件损坏、字段缺失或内容不合法。"""
+
+    code = "E_CHECKPOINT_INVALID"
+
+
+class CheckpointIncompatibleError(CheckpointError):
+    """task_id / plan_hash / spec_hash / 输入等与当前任务不一致。"""
+
+    code = "E_CHECKPOINT_INCOMPATIBLE"
+
+
+class CheckpointIOError(CheckpointError):
+    """检查点读写失败。
+
+    明确标记为不可重试：检查点通常在步骤成功之后写入，
+    重试该步骤可能重复产生外部副作用。
+    """
+
+    code = "E_CHECKPOINT_IO"
+    retryable = False
+
+
+class EventLogError(FrameworkError):
+    """事件 sink 写入失败；任务不能被标记为成功。"""
+
+    code = "E_EVENT_LOG"
+    retryable = False
+
+
 class ResumeNotSupportedError(FrameworkError):
     code = "E_RESUME_UNSUPPORTED"
     retryable = False

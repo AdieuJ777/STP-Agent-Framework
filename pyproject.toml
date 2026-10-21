@@ -1,13 +1,39 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "kkk"
-version = "0.1.0"
-description = "协议驱动的轻量级智能体执行原型框架"
+version = "0.2.0"
+description = "STP Agent Framework: a lightweight, protocol-driven execution framework for LLM agents."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
+authors = [{ name = "AdieuJ777" }]
+keywords = [
+    "agent",
+    "agent-framework",
+    "llm",
+    "workflow",
+    "orchestration",
+    "task-runtime",
+    "json-schema",
+    "dag",
+    "openai",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "pydantic>=2.7",
     "jsonschema>=4.22",
@@ -19,6 +45,12 @@ dev = ["pytest>=8.0"]
 
 [project.scripts]
 kkk-demo = "kkk.demo.accounting:main"
+
+[project.urls]
+Homepage = "https://github.com/AdieuJ777/SDT-Agent-Framework"
+Repository = "https://github.com/AdieuJ777/SDT-Agent-Framework"
+Issues = "https://github.com/AdieuJ777/SDT-Agent-Framework/issues"
+Changelog = "https://github.com/AdieuJ777/SDT-Agent-Framework/blob/main/CHANGELOG.md"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

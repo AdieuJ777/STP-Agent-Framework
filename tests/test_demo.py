@@ -1,6 +1,6 @@
 import asyncio
 
-from kkk import MockLLM
+from kkk import JsonCheckpointStore, MockLLM, ModelCallError
 from kkk.demo import accounting
 from kkk.demo.accounting import default_ollama_backend, run_demo
 from kkk.llm import OpenAICompatBackend
@@ -82,3 +82,38 @@ def test_expense_id_is_stable_for_same_text():
         run_demo("same text", backend=MockLLM([response]))
     )
     assert first["output"]["result"]["expense_id"] == second["output"]["result"]["expense_id"]
+
+
+def test_accounting_demo_can_resume_from_checkpoint(tmp_path):
+    store = JsonCheckpointStore(tmp_path)
+    backend = MockLLM(
+        [
+            ModelCallError("temporary-1"),
+            ModelCallError("temporary-2"),
+            {
+                "amount": 1200,
+                "category": "travel",
+                "vendor": "Airline",
+                "description": "flight",
+            },
+        ]
+    )
+
+    first = asyncio.run(
+        run_demo("机票 1200 元", backend=backend, checkpoint_store=store)
+    )
+    assert first["status"] == "FAILED"
+    assert first["error"]["code"] == "E_MODEL_CALL"
+    assert first["run_id"]
+
+    resumed = asyncio.run(
+        run_demo(
+            None,
+            backend=backend,
+            checkpoint_store=store,
+            resume_run_id=first["run_id"],
+        )
+    )
+    assert resumed["status"] == "SUCCEEDED"
+    assert resumed["resumed_from_run_id"] == first["run_id"]
+    assert resumed["output"]["status"] == "pending_approval"

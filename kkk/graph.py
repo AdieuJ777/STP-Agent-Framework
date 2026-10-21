@@ -125,3 +125,25 @@ class GraphTask:
 
         runtime = runtime or TaskRuntime()
         return await runtime.run(self.spec, self.build(), input_data, **kwargs)
+
+    async def resume(
+        self,
+        checkpoint_id: str | None = None,
+        *,
+        runtime=None,
+        run_id: str | None = None,
+        input_data: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ):
+        """从检查点恢复；``run_id`` 用于加载该次运行的最近检查点。"""
+        from .executor import TaskRuntime
+
+        runtime = runtime or TaskRuntime()
+        return await runtime.resume(
+            self.spec,
+            self.build(),
+            checkpoint_id,
+            run_id=run_id,
+            input_data=input_data,
+            **kwargs,
+        )

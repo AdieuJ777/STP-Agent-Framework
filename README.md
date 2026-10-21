@@ -2,13 +2,13 @@
 
 **A lightweight, protocol-driven execution framework for LLM agents.**
 
-Python package: `kkk` · Version 0.1.0 · Early prototype
+Python package: `kkk` · Version 0.2.0 · Early prototype · [Changelog](CHANGELOG.md)
 
 [中文文档](README.zh-CN.md) · **English**
 
 ---
 
-SDT is not another prompt library. It is a small execution kernel for agent workflows:
+STP is not another prompt library. It is a small execution kernel for agent workflows:
 
 > Describe a task as a **contract** (`TaskSpec`) plus a **plan** (`TaskIR`), then let one runtime execute it with schema validation, retries, timeouts, cancellation, and structured events.
 
@@ -23,7 +23,7 @@ Most production failures in agent systems come from the runtime, not the prompt:
 - Is a retry safe?
 - Can you replay two runs and prove they are equivalent?
 
-SDT makes these concerns explicit, testable, and observable instead of leaving them to ad-hoc `try/except` blocks.
+STP makes these concerns explicit, testable, and observable instead of leaving them to ad-hoc `try/except` blocks.
 
 ## Features
 
@@ -34,7 +34,8 @@ SDT makes these concerns explicit, testable, and observable instead of leaving t
 - **Timeout hierarchy** — task, step, and tool-level timeouts.
 - **Cooperative cancellation** — `CancellationToken` checked between nodes and passed into tools.
 - **Structured LLM output** — JSON Schema via `response_format`, with a `json_object` fallback and tolerant JSON extraction.
-- **Event sourcing** — append-only events with a monotonic `seq`; in-memory, JSONL, and SQLite stores.
+- **Event sourcing** — append-only events with a monotonic `seq`; in-memory, JSONL, and SQLite stores, with credential redaction before events reach sinks.
+- **Checkpoint and resume** — persist step-boundary snapshots with `JsonCheckpointStore` and resume a failed run after validating plan/spec hashes.
 - **Run equivalence** — compare two runs by status, output, retry count, and tool sequence.
 - **LLM-agnostic** — works with any OpenAI-compatible endpoint (Ollama, vLLM, OpenAI, …); `MockLLM` keeps tests deterministic and offline.
 
@@ -49,17 +50,18 @@ flowchart LR
     VAL --> RT[TaskRuntime]
     RT --> LLM[LLM backend<br/>OpenAI-compatible / MockLLM]
     RT --> TOOLS[ToolRegistry]
-    RT --> EV[EventBus]
+    RT --> CKPT[Checkpoint store<br/>JSON snapshots]
+    RT --> EV[EventBus<br/>credential redaction]
     EV --> STORES[InMemory / JSONL / SQLite]
     RT --> RUN[TaskRun<br/>status, output, error]
 ```
 
 ## Installation
 
-SDT is not published on PyPI yet. Install it from source:
+STP is not published on PyPI yet. Install it from source:
 
 ```bash
-git clone https://github.com/<your-org>/SDT-Agent-Framework.git
+git clone https://github.com/AdieuJ777/SDT-Agent-Framework.git
 cd SDT-Agent-Framework
 
 # Recommended: uv
@@ -331,6 +333,30 @@ report = compare_runs(
 report.raise_if_different()
 ```
 
+## Checkpoints and resume
+
+Configure a checkpoint store to persist a snapshot at every successful step boundary:
+
+```python
+from kkk import JsonCheckpointStore, TaskRuntime
+
+runtime = TaskRuntime(
+    backend=backend,
+    tools=registry,
+    checkpoint_store=JsonCheckpointStore("checkpoints"),
+)
+run = await my_task.run(input_data, runtime=runtime)
+
+# Resume from the latest checkpoint written for this run:
+resumed = await runtime.resume(
+    my_task.spec,
+    my_task.build(),
+    checkpoint_id=run.last_checkpoint_id,
+)
+```
+
+Before resuming, the runtime verifies the checkpoint's task id, protocol version, plan hash, and spec hash. A checkpoint is marked unsafe when resuming could repeat a non-idempotent side effect; `resume()` then raises `E_RESUME_UNSUPPORTED` instead of guessing.
+
 ## Configuration
 
 | Variable | Default | Description |
@@ -362,6 +388,8 @@ If a `KKK_*` variable is unset, the backend also checks the corresponding `OPENA
 │   ├── schema.py        # JSON Schema helpers
 │   ├── errors.py        # error taxonomy
 │   ├── tokens.py        # cancellation and pause tokens
+│   ├── checkpoint.py    # checkpoint snapshots and JSON store
+│   ├── redaction.py     # event payload redaction
 │   ├── diff.py          # run equivalence comparison
 │   └── demo/
 │       └── accounting.py
@@ -377,26 +405,26 @@ uv sync --extra dev
 uv run pytest
 ```
 
-The suite covers contracts, plan validation, retries and limits, cancellation, timeouts, event stores, tool contracts, and script-vs-graph equivalence.
+The suite covers contracts, plan validation, retries and limits, cancellation, timeouts, event stores, tool contracts, checkpoint/resume, redaction, and script-vs-graph equivalence.
 
 ## Status and limitations
 
-SDT is an **early-stage prototype** (0.1.0). The API is not stable yet. Known limitations:
+STP is an **early-stage prototype** (0.2.0). The API is not stable yet. Known limitations:
 
 - **DAG only** — no loops or parallel node execution; `max_concurrency` is fixed at `1`.
 - **Single process** — `TaskRuntime` is not designed for concurrent runs; `runtime.last_events` refers to the most recent run.
 - **Not a wire format yet** — `TaskIR` contains Python callables for branch conditions and function steps, so plans cannot be serialized or loaded from another process.
-- **Pause/resume and checkpointing are not implemented** — `PauseToken`, `TASK_PAUSED`, `CHECKPOINT_SAVED`, and `last_checkpoint_id` are modeled but not wired into the runtime.
+- **Pause is not implemented** — `PauseToken` and `TASK_PAUSED` exist, but the runtime does not pause between nodes yet. Resume from checkpoints is implemented via `TaskRuntime.checkpoint_store` and `TaskRuntime.resume()`.
 - **Some declarations are reserved** — `Constraint`, `RetryPolicy.retryable_errors`, `ToolSpec.required_permissions`, `supports_cancellation`, and `allow_concurrent` are not enforced yet.
 - **Synchronous callables run on the event loop** — a blocking sync function can stall the runtime and make timeouts ineffective. Prefer `async def` or wrap blocking work with `asyncio.to_thread`.
 - **Idempotency keys are per call** — retries currently generate a fresh tool call id, so `context.idempotency_key` is not stable across attempts. Until deterministic retry keys land, deduplicate on a stable business key derived from your input.
-- **Event payloads contain raw data** — inputs and outputs are stored without redaction. Avoid passing secrets or PII through events.
+- **Event redaction is best-effort** — events are redacted for common credential keys and obvious `sk-…` / `Bearer …` patterns, but this is not a substitute for keeping secrets out of prompts and state.
 - **Not on PyPI** — install from source.
 
 ## Roadmap
 
 - Deterministic idempotency keys across retries.
-- Pause/resume and checkpointing.
+- Pause-token integration and checkpoint retention/cleanup.
 - A serializable IR and a plan loader for cross-process execution.
 - Per-run observability handles instead of `runtime.last_events`.
 - A permission/plugin model for tools.

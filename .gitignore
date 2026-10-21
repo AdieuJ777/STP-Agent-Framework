@@ -1,11 +1,40 @@
+# Python
 .venv/
+venv/
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Build artifacts
+dist/
+build/
+*.whl
+*.tar.gz
+
+# Local configuration and secrets
 .env
+.env.*
+!.env.example
+
+# Runtime artifacts
 *.jsonl
 *.db
 *.sqlite
-dist/
-build/
-*.egg-info/
+*.sqlite3
+*.db-journal
+runs/
+checkpoints/
+.checkpoints/
+*.log
+
+# Editors and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

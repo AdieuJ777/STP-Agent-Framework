@@ -27,6 +27,8 @@ from uuid import uuid4
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from kkk.checkpoint import CheckpointStore, JsonCheckpointStore
+from kkk.errors import CheckpointError, ResumeNotSupportedError
 from kkk.llm import LLMBackend, OpenAICompatBackend
 from kkk.models import TaskSpec, ToolSpec
 from kkk.script import BuildContext, task
@@ -226,7 +228,8 @@ def build_accounting_task():
         },
         output_schema=OUTPUT_SCHEMA,
         max_steps=10,
-        max_model_calls=2,
+        # 首次失败 + 重试会消耗 2 次；预留 1 次给恢复后的调用。
+        max_model_calls=3,
         timeout_seconds=30.0,
         retry_policy={"max_attempts": 2, "backoff_factor": 1.0, "initial_delay_seconds": 0.001},
     )
@@ -316,14 +319,22 @@ def build_accounting_task():
 
 
 async def run_demo(
-    text: str,
+    text: str | None = None,
     *,
     backend: LLMBackend | None = None,
+    checkpoint_store: CheckpointStore | None = None,
+    resume_from: str | None = None,
+    resume_run_id: str | None = None,
 ) -> dict[str, Any]:
     """运行记账 Agent。
 
     ``backend`` 只用于测试注入；不传时始终使用本地 Ollama。
     应用层不创建、也不回退到 MockLLM。
+
+    ``checkpoint_store`` 启用后可在失败后调用 ``resume_from``（指定检查点）
+    或 ``resume_run_id``（加载该 run 的最近检查点）继续执行。
+    注意：检查点只恢复任务状态，不恢复 ``ExpenseStore`` 这类外部工具状态；
+    本 Demo 的写入工具按 ``expense_id`` 幂等，因此可以安全重复调用。
     """
     if backend is None:
         backend = default_ollama_backend()
@@ -339,8 +350,27 @@ async def run_demo(
     task_obj = build_accounting_task()
     from kkk.executor import TaskRuntime
 
-    runtime = TaskRuntime(backend=backend, tools=tools, event_store=InMemoryEventStore())
-    run = await task_obj.run({"text": text}, runtime=runtime)
+    runtime = TaskRuntime(
+        backend=backend,
+        tools=tools,
+        event_store=InMemoryEventStore(),
+        checkpoint_store=checkpoint_store,
+    )
+
+    if resume_from is not None or resume_run_id is not None:
+        input_data = {"text": text} if text is not None else None
+        run = await runtime.resume(
+            task_obj.spec,
+            task_obj.build(),
+            checkpoint_id=resume_from,
+            run_id=resume_run_id,
+            input_data=input_data,
+        )
+    else:
+        if text is None:
+            raise ValueError("text is required when not resuming")
+        run = await task_obj.run({"text": text}, runtime=runtime)
+
     return {
         "status": run.status.value,
         "backend": type(backend).__name__,
@@ -349,6 +379,9 @@ async def run_demo(
         "error": run.error.model_dump() if run.error else None,
         "ledger": store.ledger,
         "approvals": store.approvals,
+        "run_id": run.run_id,
+        "resumed_from_run_id": run.resumed_from_run_id,
+        "checkpoint_id": run.last_checkpoint_id,
         "events": [event.event_type.value for event in runtime.last_events],
     }
 
@@ -361,11 +394,49 @@ def main() -> None:
         sys.stderr.reconfigure(encoding="utf-8")
 
     parser = argparse.ArgumentParser(description="记账 Agent 示例（真实模型）")
-    parser.add_argument("text", nargs="?", default="昨天从北京飞上海，机票 1200 元，走差旅报销。")
+    parser.add_argument(
+        "text",
+        nargs="?",
+        default=None,
+        help="费用描述；恢复模式可省略，默认使用检查点中的原始输入",
+    )
+    parser.add_argument(
+        "--checkpoint-dir",
+        default=None,
+        help="启用检查点并指定保存目录",
+    )
+    resume_group = parser.add_mutually_exclusive_group()
+    resume_group.add_argument("--resume", dest="resume_from", default=None, help="检查点 ID")
+    resume_group.add_argument(
+        "--resume-run",
+        dest="resume_run_id",
+        default=None,
+        help="原始 run_id，加载该 run 的最近检查点",
+    )
     args = parser.parse_args()
 
+    text = args.text
+    if text is None and args.resume_from is None and args.resume_run_id is None:
+        text = "昨天从北京飞上海，机票 1200 元，走差旅报销。"
+
+    checkpoint_store = (
+        JsonCheckpointStore(args.checkpoint_dir) if args.checkpoint_dir else None
+    )
+    if (args.resume_from or args.resume_run_id) and checkpoint_store is None:
+        parser.error("--resume/--resume-run requires --checkpoint-dir")
+
     try:
-        result = asyncio.run(run_demo(args.text))
+        result = asyncio.run(
+            run_demo(
+                text,
+                checkpoint_store=checkpoint_store,
+                resume_from=args.resume_from,
+                resume_run_id=args.resume_run_id,
+            )
+        )
+    except (CheckpointError, ResumeNotSupportedError) as exc:
+        print(f"恢复失败：{exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
     except Exception as exc:
         print(f"运行失败：{exc}", file=sys.stderr)
         print(

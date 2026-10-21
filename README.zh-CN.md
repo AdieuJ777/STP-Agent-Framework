@@ -2,13 +2,13 @@
 
 **一个轻量、协议驱动的 LLM Agent 执行框架。**
 
-Python 包：`kkk` · 版本 0.1.0 · 早期原型
+Python 包：`kkk` · 版本 0.2.0 · 早期原型 · [更新日志](CHANGELOG.md)
 
 **中文** · [English](README.md)
 
 ---
 
-SDT 不是另一个 Prompt 库，而是一个很小的 Agent 工作流执行内核：
+STP 不是另一个 Prompt 库，而是一个很小的 Agent 工作流执行内核：
 
 > 用一个**契约**（`TaskSpec`）描述任务，用一份**计划**（`TaskIR`）描述步骤，然后交给统一的运行时执行——自动完成 Schema 校验、重试、超时、取消和结构化事件记录。
 
@@ -23,7 +23,7 @@ Agent 系统在生产环境中的大部分问题，不是 Prompt 写得不好，
 - 这次重试安全吗？
 - 能否回放两次运行并证明它们结果等价？
 
-SDT 把这些关注点显式化、可测试、可观测，而不是散落在各处的 `try/except` 里。
+STP 把这些关注点显式化、可测试、可观测，而不是散落在各处的 `try/except` 里。
 
 ## 特性
 
@@ -34,7 +34,8 @@ SDT 把这些关注点显式化、可测试、可观测，而不是散落在各�
 - **分层超时** —— 任务级、步骤级、工具级超时。
 - **协作式取消** —— 节点间检查 `CancellationToken`，并传递给工具。
 - **结构化 LLM 输出** —— 通过 `response_format` 约束 JSON Schema，并带 `json_object` 回退和宽松的 JSON 提取。
-- **事件溯源** —— 严格递增 `seq` 的追加式事件；支持内存、JSONL、SQLite 三种存储。
+- **事件溯源** —— 严格递增 `seq` 的追加式事件；支持内存、JSONL、SQLite 三种存储，事件写入前会做凭据脱敏。
+- **检查点与恢复** —— 用 `JsonCheckpointStore` 在步骤边界保存快照，并在校验计划/规格哈希后恢复失败的任务。
 - **运行等价性比较** —— 按状态、输出、重试次数和工具调用序列比较两次运行。
 - **LLM 无关** —— 兼容任意 OpenAI 风格接口（Ollama、vLLM、OpenAI……）；`MockLLM` 让测试保持确定性和离线。
 
@@ -49,17 +50,18 @@ flowchart LR
     VAL --> RT[TaskRuntime]
     RT --> LLM[LLM 后端<br/>OpenAI 兼容 / MockLLM]
     RT --> TOOLS[ToolRegistry]
-    RT --> EV[EventBus]
+    RT --> CKPT[检查点存储<br/>JSON 快照]
+    RT --> EV[EventBus<br/>凭据脱敏]
     EV --> STORES[内存 / JSONL / SQLite]
     RT --> RUN[TaskRun<br/>状态、输出、错误]
 ```
 
 ## 安装
 
-SDT 尚未发布到 PyPI，请从源码安装：
+STP 尚未发布到 PyPI，请从源码安装：
 
 ```bash
-git clone https://github.com/<your-org>/SDT-Agent-Framework.git
+git clone https://github.com/AdieuJ777/SDT-Agent-Framework.git
 cd SDT-Agent-Framework
 
 # 推荐：uv
@@ -331,6 +333,30 @@ report = compare_runs(
 report.raise_if_different()
 ```
 
+## 检查点与恢复
+
+配置检查点存储后，每个步骤成功结束时都会保存一份快照：
+
+```python
+from kkk import JsonCheckpointStore, TaskRuntime
+
+runtime = TaskRuntime(
+    backend=backend,
+    tools=registry,
+    checkpoint_store=JsonCheckpointStore("checkpoints"),
+)
+run = await my_task.run(input_data, runtime=runtime)
+
+# 从该 run 最近一次检查点恢复：
+resumed = await runtime.resume(
+    my_task.spec,
+    my_task.build(),
+    checkpoint_id=run.last_checkpoint_id,
+)
+```
+
+恢复前，运行时会校验检查点的 task id、协议版本、计划哈希和规格哈希。如果恢复可能重复执行非幂等的副作用，检查点会被标记为不安全，`resume()` 会抛出 `E_RESUME_UNSUPPORTED`，而不是盲目重放。
+
 ## 配置
 
 | 环境变量 | 默认值 | 说明 |
@@ -362,6 +388,8 @@ report.raise_if_different()
 │   ├── schema.py        # JSON Schema 工具函数
 │   ├── errors.py        # 错误体系
 │   ├── tokens.py        # 取消与暂停 token
+│   ├── checkpoint.py    # 检查点快照与 JSON 存储
+│   ├── redaction.py     # 事件载荷脱敏
 │   ├── diff.py          # 运行等价性比较
 │   └── demo/
 │       └── accounting.py
@@ -377,26 +405,26 @@ uv sync --extra dev
 uv run pytest
 ```
 
-测试覆盖契约校验、计划校验、重试与限制、取消、超时、事件存储、工具契约，以及脚本 API 与图 API 的等价性。
+测试覆盖契约校验、计划校验、重试与限制、取消、超时、事件存储、工具契约、检查点与恢复、脱敏，以及脚本 API 与图 API 的等价性。
 
 ## 项目状态与限制
 
-SDT 目前是**早期原型**（0.1.0），API 尚不稳定。已知限制：
+STP 目前是**早期原型**（0.2.0），API 尚不稳定。已知限制：
 
 - **仅支持 DAG** —— 不支持循环和并行节点；`max_concurrency` 固定为 `1`。
 - **单进程** —— `TaskRuntime` 不是为并发运行设计的；`runtime.last_events` 只指向最近一次运行。
 - **尚不是可传输格式** —— `TaskIR` 中的分支条件和函数步骤是 Python callable，因此计划无法序列化，也无法从其他进程加载。
-- **暂停/恢复和断点尚未实现** —— `PauseToken`、`TASK_PAUSED`、`CHECKPOINT_SAVED`、`last_checkpoint_id` 已在模型中声明，但运行时尚未接线。
+- **暂停尚未实现** —— `PauseToken` 和 `TASK_PAUSED` 已存在，但运行时还不会在节点间暂停。检查点恢复已通过 `TaskRuntime.checkpoint_store` 和 `TaskRuntime.resume()` 实现。
 - **部分声明是保留字段** —— `Constraint`、`RetryPolicy.retryable_errors`、`ToolSpec.required_permissions`、`supports_cancellation`、`allow_concurrent` 尚未生效。
 - **同步函数会运行在事件循环上** —— 阻塞的同步函数会卡住运行时，使超时失效。请优先使用 `async def`，或用 `asyncio.to_thread` 包装阻塞逻辑。
 - **幂等键按调用生成** —— 重试目前会生成新的工具调用 id，因此 `context.idempotency_key` 在不同尝试间并不稳定。在确定性重试键实现之前，请使用基于输入的业务主键去重。
-- **事件包含原始数据** —— 输入和输出未做脱敏就写入事件。请避免让密钥或 PII 进入事件流。
+- **事件脱敏是尽力而为** —— 常见凭据字段、明显的 `sk-…` / `Bearer …` 文本会被替换，但这不能替代“不要把密钥放进 Prompt 或状态”的纪律。
 - **尚未发布到 PyPI** —— 请从源码安装。
 
 ## 路线图
 
 - 跨重试稳定的确定性幂等键。
-- 暂停/恢复与断点续跑。
+- 暂停 token 接入，以及检查点的保留与清理策略。
 - 可序列化 IR 与计划加载器，支持跨进程执行。
 - 用每次运行独立的观测句柄替代 `runtime.last_events`。
 - 工具权限与插件模型。

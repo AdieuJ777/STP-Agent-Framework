@@ -161,6 +161,7 @@ class TaskRun(BaseModel):
     attempt_count: int = 0
     model_call_count: int = 0
     last_checkpoint_id: str | None = None
+    resumed_from_run_id: str | None = None
     error: RunError | None = None
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
@@ -181,6 +182,7 @@ class EventType(str, Enum):
     TASK_STARTED = "TASK_STARTED"
     STEP_START = "STEP_START"
     STEP_END = "STEP_END"
+    STEP_SKIPPED = "STEP_SKIPPED"
     LLM_CALL_START = "LLM_CALL_START"
     LLM_CALL_END = "LLM_CALL_END"
     TOOL_CALL_START = "TOOL_CALL_START"
@@ -190,6 +192,8 @@ class EventType(str, Enum):
     TASK_PAUSED = "TASK_PAUSED"
     TASK_RESUMED = "TASK_RESUMED"
     CHECKPOINT_SAVED = "CHECKPOINT_SAVED"
+    CHECKPOINT_LOADED = "CHECKPOINT_LOADED"
+    RECOVERY_FAILED = "RECOVERY_FAILED"
     TASK_COMPLETED = "TASK_COMPLETED"
     TASK_FAILED = "TASK_FAILED"
     TASK_CANCELLED = "TASK_CANCELLED"
@@ -200,11 +204,17 @@ class ExecutionEvent(BaseModel):
 
     event_id: str = Field(default_factory=lambda: uuid4().hex)
     run_id: str
+    task_id: str | None = None
     seq: int
     step_index: int = -1
+    step_id: str | None = None
     attempt: int = 0
     event_type: EventType
     payload: dict[str, Any] = Field(default_factory=dict)
+    # 事件协议自身的版本，便于后续读取旧日志时做兼容处理。
+    event_schema_version: int = 1
+    # 步骤 / 工具 / 模型调用的耗时；任务级事件为 None。
+    duration_ms: float | None = None
     timestamp: datetime = Field(default_factory=utcnow)
 
 

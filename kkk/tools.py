@@ -6,6 +6,7 @@ import asyncio
 import inspect
 import math
 import operator
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -32,9 +33,15 @@ class ToolCallContext:
     cancellation: CancellationToken | None = None
     emit: Callable[[EventType, dict[str, Any]], ExecutionEvent] | None = None
 
-    def event(self, event_type: EventType, payload: dict[str, Any]) -> None:
+    def event(
+        self,
+        event_type: EventType,
+        payload: dict[str, Any],
+        *,
+        duration_ms: float | None = None,
+    ) -> None:
         if self.emit is not None:
-            self.emit(event_type, payload)
+            self.emit(event_type, payload, duration_ms=duration_ms)
 
 
 class Tool(ABC):
@@ -116,6 +123,7 @@ class ToolRegistry:
             },
         )
 
+        started = time.perf_counter()
         try:
             result = await asyncio.wait_for(
                 tool.execute(input_data, context),
@@ -142,6 +150,7 @@ class ToolRegistry:
                     "error_code": error.code,
                     "message": str(error),
                 },
+                duration_ms=(time.perf_counter() - started) * 1000,
             )
             raise error from exc
         except FrameworkError as exc:
@@ -154,6 +163,7 @@ class ToolRegistry:
                     "error_code": exc.code,
                     "message": str(exc),
                 },
+                duration_ms=(time.perf_counter() - started) * 1000,
             )
             raise
         except Exception as exc:
@@ -171,6 +181,7 @@ class ToolRegistry:
                     "error_code": error.code,
                     "message": str(error),
                 },
+                duration_ms=(time.perf_counter() - started) * 1000,
             )
             raise error from exc
 
@@ -182,6 +193,7 @@ class ToolRegistry:
                 "status": "ok",
                 "output": result,
             },
+            duration_ms=(time.perf_counter() - started) * 1000,
         )
         return result
 
