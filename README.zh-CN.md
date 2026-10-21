@@ -61,8 +61,8 @@ flowchart LR
 STP 尚未发布到 PyPI，请从源码安装：
 
 ```bash
-git clone https://github.com/AdieuJ777/SDT-Agent-Framework.git
-cd SDT-Agent-Framework
+git clone https://github.com/AdieuJ777/STP-Agent-Framework.git
+cd STP-Agent-Framework
 
 # 推荐：uv
 uv sync --extra dev

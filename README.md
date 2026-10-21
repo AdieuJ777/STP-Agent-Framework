@@ -61,8 +61,8 @@ flowchart LR
 STP is not published on PyPI yet. Install it from source:
 
 ```bash
-git clone https://github.com/AdieuJ777/SDT-Agent-Framework.git
-cd SDT-Agent-Framework
+git clone https://github.com/AdieuJ777/STP-Agent-Framework.git
+cd STP-Agent-Framework
 
 # Recommended: uv
 uv sync --extra dev
