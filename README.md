@@ -1,4 +1,4 @@
-# SDT Agent Framework
+# STP Agent Framework
 
 **A lightweight, protocol-driven execution framework for LLM agents.**
 

@@ -1,4 +1,4 @@
-# SDT Agent Framework
+# STP Agent Framework
 
 **一个轻量、协议驱动的 LLM Agent 执行框架。**
 
