@@ -47,10 +47,10 @@ dev = ["pytest>=8.0"]
 kkk-demo = "kkk.demo.accounting:main"
 
 [project.urls]
-Homepage = "https://github.com/AdieuJ777/SDT-Agent-Framework"
-Repository = "https://github.com/AdieuJ777/SDT-Agent-Framework"
-Issues = "https://github.com/AdieuJ777/SDT-Agent-Framework/issues"
-Changelog = "https://github.com/AdieuJ777/SDT-Agent-Framework/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/AdieuJ777/STP-Agent-Framework"
+Repository = "https://github.com/AdieuJ777/STP-Agent-Framework"
+Issues = "https://github.com/AdieuJ777/STP-Agent-Framework/issues"
+Changelog = "https://github.com/AdieuJ777/STP-Agent-Framework/blob/main/CHANGELOG.md"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
