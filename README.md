@@ -2,7 +2,7 @@
 
 **A lightweight, protocol-driven execution framework for LLM agents.**
 
-Python package: `kkk` · Version 0.2.0 · Early prototype · [Changelog](CHANGELOG.md)
+Python package: `kkk` · Version 0.2.0 · Early prototype · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
 [中文文档](README.zh-CN.md) · **English**
 

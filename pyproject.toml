@@ -51,6 +51,7 @@ Homepage = "https://github.com/AdieuJ777/STP-Agent-Framework"
 Repository = "https://github.com/AdieuJ777/STP-Agent-Framework"
 Issues = "https://github.com/AdieuJ777/STP-Agent-Framework/issues"
 Changelog = "https://github.com/AdieuJ777/STP-Agent-Framework/blob/main/CHANGELOG.md"
+Roadmap = "https://github.com/AdieuJ777/STP-Agent-Framework/blob/main/ROADMAP.md"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

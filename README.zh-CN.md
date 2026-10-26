@@ -2,7 +2,7 @@
 
 **一个轻量、协议驱动的 LLM Agent 执行框架。**
 
-Python 包：`kkk` · 版本 0.2.0 · 早期原型 · [更新日志](CHANGELOG.md)
+Python 包：`kkk` · 版本 0.2.0 · 早期原型 · [更新日志](CHANGELOG.md) · [路线图](ROADMAP.md)
 
 **中文** · [English](README.md)
 
